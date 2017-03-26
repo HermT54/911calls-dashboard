@@ -1,4 +1,3 @@
-
 from mpl_toolkits.basemap import Basemap
 import numpy as np
 import matplotlib.pyplot as plt
@@ -82,23 +81,36 @@ class createDashBoard():
 
     def getAddrString(self, event):
         addInput = self.entrythingy.get()
-        ai = baseMapObject.plotPoint(self, addInput)
 
-        #I THINK HERE I NEED TO RE-FORMAT ADDINPUT SO ITS JUST BLOCKS AND STREET
-        myCursor = """SELECT COUNT(cfs_id), cfs_call_reason
-                      FROM callsforservice
-                      WHERE LOCATE(lower("%s"), lower(cfs_address1)) > 0
-                        OR LOCATE(lower("%s"), lower(cfs_address2)) > 0
-                      GROUP BY cfs_call_reason""" % (addInput, addInput)
+        if addInput.find('/') == False:
+            ai = baseMapObject.plotPoint(self, addInput)
+
+        if addInput[0].isdigit():
+            spcPos = addInput.find(' ') + 1
+            myCursor = """SELECT COUNT(cfs_id), cfs_call_reason
+                          FROM callsforservice
+                          WHERE LOCATE(lower("%s"), lower(cfs_address1)) > 0
+                          and LOCATE(lower("%s"), lower(cfs_address1)) > 0
+                          GROUP BY cfs_call_reason""" % (addInput[0], addInput[spcPos:])
+        elif addInput.find('/'):
+            slshPos = addInput.find('/')
+            print(addInput, slshPos, addInput[0:slshPos-1], addInput[slshPos+1:])
+            myCursor = """SELECT COUNT(cfs_id), cfs_call_reason
+                          FROM callsforservice
+                          WHERE LOCATE(lower(trim("%s")), lower(trim(cfs_address1))) > 0
+                          and LOCATE(lower(trim("%s")), lower(trim(cfs_address2))) > 0
+                          GROUP BY cfs_call_reason""" % (addInput[0:slshPos-1], addInput[slshPos+1:])
+
         curResults = dataManagement.pullCursors(self, myCursor, None)
-
         createDashBoard.populateListBox(self, curResults)
 
 
     def populateListBox(self, curResults):
 
+
         try:
             ttlList = sum(1 for i in curResults)
+            print(ttlList)
             self.lb.delete(1)
             for j in range(0, ttlList):
                 self.lb.insert(END, curResults[j])
