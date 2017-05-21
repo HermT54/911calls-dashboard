@@ -1,3 +1,4 @@
+
 from mpl_toolkits.basemap import Basemap
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,10 +8,12 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import requests
-import mysql.connector
+#import mysql.connector
 import datetime
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+
+import sqlite3
 
 class createDashBoard():
 
@@ -47,7 +50,6 @@ class createDashBoard():
         self.entrythingy.bind('<Return>', self.getAddrString)
         self.entrythingy.pack(ipady=10)
 
-
     def setupListBox(self):
         #CREATE A LIST BOX FOR THE OUTPUT
         self.scrollListFrame = Frame()
@@ -59,64 +61,74 @@ class createDashBoard():
         self.lb.pack(expand=0, fill='y', anchor='w')
         self.lb.config(width=35)
 
-
     def initialCalcData(self):
         #CREATE GRAPH OF DATA FROM DATABASE AND PRE-POPULATE
-        myCursor = "SELECT count, cfs_violent_indicator FROM violent_view"
+        myCursor = 'select count(*) as count, description from crimedata group by description order by count desc limit 5'
         curResults = dataManagement.pullCursors(self, myCursor, None)
         xList, yList = zip(*curResults)
         y_pos = np.arange(len(yList))
-        self.lineChartPlot.set_xticklabels(yList)
+        self.lineChartPlot.set_xticklabels(yList, rotation=90, fontdict=None, minor=False, fontsize=6)
+        #self.lineChartPlot.set_xticks(yList, rotation=45)
+        #self.lineChartPlot.xaxis.set_label_coords(0, 0)
         self.lineChartPlot.set_xticks(y_pos, minor=False)
         self.lineChartPlot.set_ylabel('Number of Calls')
         self.lineChartPlot.bar(y_pos, xList, width=0.7, align="center")
+        #self.lineChartPlot.xticks(y_pos, yList)
+        self.figure1.tight_layout()
 
         #GET THE BASEMAP
         getMyMap = baseMapObject.__init__(self, self.mapPlot)
 
-
     def clientExit(self):
         exit()
-
 
     def getAddrString(self, event):
         addInput = self.entrythingy.get()
 
-        if addInput.find('/') == False:
-            ai = baseMapObject.plotPoint(self, addInput)
+        ai = baseMapObject.plotPoint(self, addInput)
 
+
+        #if addInput[0].isdigit():
+        #    spcPos = addInput.find(' ') + 1
+        #    myCursor = """SELECT COUNT(complaint), description
+        #                  FROM crimedata
+        #                  WHERE instr(lower("%s"), lower(cadstreet)) > 0
+        #                  and instr(lower("%s"), lower(cadstreet)) > 0
+        #                  GROUP BY description""" % (addInput[0], addInput[spcPos:])
+        #elif addInput.find('/'):
+        #    slshPos = addInput.find('/')
+        #    myCursor = """SELECT COUNT(complaint), description
+        #                  FROM crimedata
+        #                  WHERE instr(lower(trim("%s")), lower(trim(cadstreet))) > 0
+        #                  and instr(lower(trim("%s")), lower(trim(cadstreet))) > 0
+        #                  GROUP BY description""" % (addInput[0:slshPos-1], addInput[slshPos+1:])
         if addInput[0].isdigit():
             spcPos = addInput.find(' ') + 1
-            myCursor = """SELECT COUNT(cfs_id), cfs_call_reason
-                          FROM callsforservice
-                          WHERE LOCATE(lower("%s"), lower(cfs_address1)) > 0
-                          and LOCATE(lower("%s"), lower(cfs_address1)) > 0
-                          GROUP BY cfs_call_reason""" % (addInput[0], addInput[spcPos:])
-        elif addInput.find('/'):
-            slshPos = addInput.find('/')
-            print(addInput, slshPos, addInput[0:slshPos-1], addInput[slshPos+1:])
-            myCursor = """SELECT COUNT(cfs_id), cfs_call_reason
-                          FROM callsforservice
-                          WHERE LOCATE(lower(trim("%s")), lower(trim(cfs_address1))) > 0
-                          and LOCATE(lower(trim("%s")), lower(trim(cfs_address2))) > 0
-                          GROUP BY cfs_call_reason""" % (addInput[0:slshPos-1], addInput[slshPos+1:])
+            myCursor = """SELECT COUNT(complaint), trim(description) as description
+                          FROM crimedata
+                          WHERE "%s" = cadaddress
+                          and lower("%s") = lower(cadstreet)
+                          GROUP BY description""" % (addInput[0:spcPos-1], addInput[spcPos:])
+        elif not addInput[0].isdigit():
+            myCursor = """SELECT COUNT(complaint), trim(description) as description
+                          FROM crimedata
+                          WHERE instr(lower(trim("%s")), lower(trim(cadstreet))) > 0
+                          GROUP BY description""" % (addInput)
 
         curResults = dataManagement.pullCursors(self, myCursor, None)
         createDashBoard.populateListBox(self, curResults)
 
-
     def populateListBox(self, curResults):
 
-
+        self.lb.delete(0, END)
         try:
             ttlList = sum(1 for i in curResults)
-            print(ttlList)
-            self.lb.delete(1)
             for j in range(0, ttlList):
                 self.lb.insert(END, curResults[j])
         except TypeError:
             self.lb.insert(END, "No Reports")
 
+        self.entrythingy.delete(0, END)
 
     def refreshCanvas(self, newMapPoint):
         self.canvas.draw()
@@ -183,7 +195,8 @@ class dataManagement():
 
     def pullCursors(self, myCursor, addtlVar):
 
-        cnx = mysql.connector.connect(user='root', database='analytics_911')
+        #cnx = mysql.connector.connect(user='root', database='analytics_911')
+        cnx = sqlite3.connect('C:\\Users\\kelma_000\\Documents\\Python Project Files\\PythonEnv\\SQLlite Test\\env\\first.db')
         cursor = cnx.cursor()
 
         cursor.execute(myCursor)
@@ -198,13 +211,15 @@ class dataManagement():
 
     def AppendData():
 
-        cnx = mysql.connector.connect(user='root', database='analytics_911')
+        cnx = sqlite3.connect('C:\\Users\\kelma_000\\Documents\\Python Project Files\\PythonEnv\\SQLlite Test\\env\\first.db')
+        #cnx = mysql.connector.connect(user='root', database='analytics_911')
         cursor = cnx.cursor()
 
-        cBquery = ("""SELECT COUNT(cfs_id) FROM callsforservice""")
+        cBquery = ("""SELECT COUNT(complaint) FROM crimedata""")
         checkBefore = cursor.execute(cBquery)
         resultCheckBefore = cursor.fetchall()
-        print(resultCheckBefore)
+        print('Database has {} number of records.'.format(resultCheckBefore))
+        #print('Data Starts At:' & resultCheckBefore)
 
         htmlPage = requests.get("http://www.slmpd.org/cfs.aspx").text
 
@@ -234,47 +249,46 @@ class dataManagement():
             cfsAddr.append(cols[2].get_text())
             cfsReason.append(cols[3].get_text())
 
-        cfsAddr1 = []
-        cfsAddr2 = []
+
+        CADAddr = []
+        ILEADSAddr = []
+        CADStreet = []
 
         for ea in cfsAddr:
-            posSep = ea.find('/')
-            if posSep == -1:
-                cfsAddr1.append(ea)
-            else:
-                newEnd = posSep-1
-                newStart = posSep+1
-                lenStr = len(ea)
-                cfsAddr1.append(ea[0:newEnd])
-                cfsAddr2.append(ea[newStart:lenStr])
+            if ea.find('/') == -1:
+                if ea[0].isdigit:
+                    strtPart = ea.split()[0]
+                    CADStreet.append(strtPart.replace('XX', '01'))
+                    CADAddr.append(" ".join(ea.split()[1:]))
+                    ILEADSAddr.append(' ')
+                elif not ea[0].isdigit:
+                    CADAddr = ea.join(c for c in CADAddr if c not in "[]'")
+                    CADStreet.append('')
+                    ILEADSAddr.append(' ')
+            elif ea.find('/') > -1:
+                slshPos = ea.find('/')
+                CADAddr.append(ea[0:slshPos-1].strip())
+                CADStreet.append('')
+                ILEADSAddr.append(ea[slshPos+1:].strip())
+
 
         cfsDates2=[]
-        cfsAddr3=[]
-
-        ins911query = ("""INSERT INTO temp_junk(id, date1, addr1, addr2, reason, date2) VALUES (%s,%s,%s,%s,%s,%s)""")
 
         ttlCount = sum(1 for i in cfsId)
+        #print('The total count is {}:'.format(ttlCount))
         for j in range(0,ttlCount):
             try:
                 cfsDates2.append(datetime.strptime(cfsDates[j], "%Y-%m-%d %H:%M:%S"))
             except ValueError:
                 cfsDates2.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-            try:
-                var4 = cfsAddr2[j]
-            except IndexError:
-                var4 = None
-
-            cursor.execute(ins911query, (cfsId[j], cfsDates2[j], cfsAddr1[j], var4, cfsReason[j], cfsUpdatetime))
+            appendQuery = ("""insert into crimedata(complaint, dateoccur, description, FlagAdministrative, ileadsaddress, CADAddress, CADStreet)
+                              values(?,?,?,?,?,?,?)""")
+            #print(CADAddr[j])
+            cursor.execute(appendQuery, (cfsId[j], cfsDates2[j], cfsReason[j], cfsUpdatetime, ILEADSAddr[j], CADAddr[j],CADStreet[j]))
             cnx.commit()
 
-        appendQuery = ("""INSERT INTO callsforservice(cfs_id, cfs_date, cfs_address1, cfs_address2, cfs_call_reason, ods_updatetime)
-                          SELECT b.id, b.date1, b.addr1, b.addr2, b.reason, b.date2 FROM temp_junk b
-                          LEFT JOIN callsforservice a ON b.id = a.cfs_ID WHERE a.cfs_id IS NULL """)
-        cursor.execute(appendQuery)
-        cnx.commit()
-
-        cAquery = ("""SELECT COUNT(cfs_id) FROM callsforservice""")
+        cAquery = ("""SELECT COUNT(complaint) FROM crimedata""")
         checkAfter = cursor.execute(cAquery)
         resultCheckAfter = cursor.fetchall()
         print(resultCheckAfter)
@@ -287,7 +301,7 @@ class dataManagement():
         cursor.close
         cnx.close
 
-
+#complaint dateOccur Description ILEADSAddress(####) ILEADSStreet(name) CADAddress CADStreet
 if __name__ == '__main__':
     root = Tk()
     createDashBoard(root)
